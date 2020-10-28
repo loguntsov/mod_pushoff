@@ -167,7 +167,7 @@ restart_retry_timer(OldTimer) ->
 pending_to_retry(Head, RetryList) -> RetryList ++ Head.
 
 pending_element_to_json({_, Payload, Token, DisableArgs}) ->
-    Body = proplists:get_value(body, Payload),
+    Body = proplists:get_value(body, Payload, mod_pushoff_message:body(Payload)),
     From = proplists:get_value(from, Payload),
     BF = [{body, Body}, {title, From}],
     PushMessage = {[{to,           Token},

@@ -148,10 +148,12 @@ alert_headers(APNS, Topic, RawToken) ->
     Token = to_hex(RawToken),
     post(APNS, <<"/3/device/", Token/binary>>) ++ [{<<"apns-push-type">>,<<"alert">>}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
 
-payload() ->
-    <<"{ \"aps\" : { \"alert\" : \"Incoming Message\", \"mutable-content\": 1 }, \"message-id\": 42 }">>.
+render_payload(Payload) ->
+    Message = mod_pushoff_message:body(Payload),
+    <<"{ \"aps\" : { \"alert\" : \"", Message/binary, "\", \"mutable-content\": 1 }, \"message-id\": 42 }">>.
 
-make_request(APNS, Topic, {dispatch, _UserBare, _Payload, Token, _DisableArgs}) -> {alert_headers(APNS, Topic, Token), payload()}.
+make_request(APNS, Topic, {dispatch, _UserBare, Payload, Token, _DisableArgs}) ->
+    {alert_headers(APNS, Topic, Token), render_payload(Payload)}.
 
 % https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/handling_notification_responses_from_apns
 status(<<"200">>) -> ok;

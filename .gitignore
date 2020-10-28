@@ -1,3 +1,6 @@
 *.beam
 *.iml
 .idea
+/ejabberd
+_build
+rebar.lock

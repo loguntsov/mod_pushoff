@@ -47,7 +47,18 @@
 
 -spec(stanza_to_payload(message()) -> [{atom(), any()}]).
 
-stanza_to_payload(#message{id = Id}) -> [{id, Id}];
+stanza_to_payload(#message{id = Id, sub_els = SubEls }) ->
+  PushType = case fxml:get_subtag(#xmlel{ children = SubEls }, <<"push">>) of
+    false -> [];
+    PushTag ->
+      case fxml:get_attr_s(PushTag, <<"type">>) of
+        <<"hidden">> -> [{ push_type, hidden }];
+        <<"call">> -> [{ push_type, call }];
+        <<"none">> -> [{ push_type, none }];
+        _ -> []
+      end
+  end,
+  [{id, Id} | PushType];
 stanza_to_payload(_) -> [].
 
 -spec(dispatch(pushoff_registration(), [{atom(), any()}]) -> ok).
@@ -67,16 +78,21 @@ dispatch(#pushoff_registration{bare_jid = UserBare, token = Token, timestamp = T
 -spec(offline_message({atom(), message()}) -> {atom(), message()}).
 
 offline_message({_, #message{to = To} = Stanza} = Acc) ->
-    Payload = stanza_to_payload(Stanza),
-    case mod_pushoff_mnesia:list_registrations(To) of
+  Payload = stanza_to_payload(Stanza),
+  case proplists:get_value(push_type, Payload) of
+    none -> ok;
+    _ ->
+      case mod_pushoff_mnesia:list_registrations(To) of
         {registrations, []} ->
-            ?DEBUG("~p is not_subscribed", [To]),
-            Acc;
+          ?DEBUG("~p is not_subscribed", [To]),
+          ok;
         {registrations, Rs} ->
-            [dispatch(R, Payload) || R <- Rs],
-            Acc;
-        {error, _} -> Acc
-    end.
+          [dispatch(R, Payload) || R <- Rs],
+          ok;
+        {error, _} -> ok
+      end
+  end,
+  Acc.
 
 
 -spec(remove_user(User :: binary(), Server :: binary()) ->

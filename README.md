@@ -6,10 +6,25 @@ Supported backends:
 - `mod_pushoff_apns_h2`: [Apple APNs over http/2](https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns)
 - `mod_pushoff_fcm`: [Google Firebase Cloud Messaging HTTP Protocol](https://firebase.google.com/docs/cloud-messaging/http-server-ref)
 
+This module supports type of push notification in message (means extended type of message):
+
+```
+<message xml:lang='en' to='test1@spokechat.ch' from='test2@spokechat.ch/1383651064974494952311794' 
+  type='chat' id='D6DD5DF1-6468-4607-BD80-4FF0C9DE3DAC' xmlns='jabber:client'>
+    <request xmlns='urn:xmpp:chat-markers:0'/>
+        <push type='hidden'/>
+    <body>Hello</body>
+</message>
+```
+
+* `<push type='hidden'/>` - text of PN: hidden message
+* `<push type='call'/>` - text of PN: call message
+* `<push type='none'/>` - don't send PN
+
 ## Prerequisites
 
 * Erlang/OTP 19 or higher
-* ejabberd 18.01
+* ejabberd 20.07
 
 ## Installation
 
