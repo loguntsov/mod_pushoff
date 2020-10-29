@@ -50,7 +50,7 @@
 stanza_to_payload(#message{id = Id, sub_els = SubEls }) ->
   PushType = case fxml:get_subtag(#xmlel{ children = SubEls }, <<"push">>) of
     false -> [];
-    PushTag ->
+    PushTag = #xmlel{} ->
       case fxml:get_tag_attr_s(<<"type">>, PushTag) of
         <<"hidden">> -> [{ push_type, hidden }];
         <<"call">> -> [{ push_type, call }];
