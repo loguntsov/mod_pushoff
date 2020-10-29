@@ -149,8 +149,11 @@ alert_headers(APNS, Topic, RawToken) ->
     post(APNS, <<"/3/device/", Token/binary>>) ++ [{<<"apns-push-type">>,<<"alert">>}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
 
 render_payload(Payload) ->
-    Message = mod_pushoff_message:body(Payload),
-    <<"{ \"aps\" : { \"alert\" : \"", Message/binary, "\", \"mutable-content\": 1 }, \"message-id\": 42 }">>.
+    Alert = jsx:encode(#{
+        body => mod_pushoff_message:body(Payload),
+        title => mod_pushoff_message:from(Payload)
+    }),
+    <<"{ \"aps\" : { \"alert\" : ",Alert/binary, "\"mutable-content\": 1 }, \"message-id\": 42 }">>.
 
 make_request(APNS, Topic, {dispatch, _UserBare, Payload, Token, _DisableArgs}) ->
     {alert_headers(APNS, Topic, Token), render_payload(Payload)}.

@@ -3,7 +3,7 @@
 
 %% API
 -export([
-  body/1
+  body/1, from/1
 ]).
 
 body(Payload) ->
@@ -11,5 +11,8 @@ body(Payload) ->
   case PushType of
     hidden -> <<"Hidden Message">>;
     call -> <<"Call message">>;
-    _ -> <<"Incoming Message">>
+    body -> proplists:get_value(body, Payload)
   end.
+
+from(Payload) ->
+  proplists:get_value(from, Payload, <<>>).

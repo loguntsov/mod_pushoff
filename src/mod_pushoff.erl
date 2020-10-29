@@ -47,7 +47,7 @@
 
 -spec(stanza_to_payload(message()) -> [{atom(), any()}]).
 
-stanza_to_payload(#message{id = Id, sub_els = SubEls }) ->
+stanza_to_payload(#message{id = Id, sub_els = SubEls } = Msg) ->
   PushType = case fxml:get_subtag(#xmlel{ children = SubEls }, <<"push">>) of
     false -> [];
     PushTag = #xmlel{} ->
@@ -55,6 +55,11 @@ stanza_to_payload(#message{id = Id, sub_els = SubEls }) ->
         <<"hidden">> -> [{ push_type, hidden }];
         <<"call">> -> [{ push_type, call }];
         <<"none">> -> [{ push_type, none }];
+        <<"body">> -> [
+            {push_type, body },
+            {body, Msg#message.body },
+            {from, jid:to_string(Msg#message.from)}
+          ];
         _ -> []
       end
   end,

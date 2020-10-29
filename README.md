@@ -20,8 +20,9 @@ This module supports type of push notification in message (means extended type o
 * `<push type='hidden'/>` - text of PN: hidden message
 * `<push type='call'/>` - text of PN: call message
 * `<push type='none'/>` - don't send PN
+* `<push type='body'/>` - sends PN with text from message and field `from` (if it is possible).
 
-WARNING: !!!! If push tag is not presented, then push notification is not generated. This behaviour by default.
+WARNING: !!!! If push tag is not presented, then push notification is not generated. This is behaviour by default.
 
 ## Prerequisites
 

@@ -3,9 +3,12 @@
   {vsn, "git"},
   {modules, []},
   {registered, []},
-  {applications, [kernel,
-                  stdlib,
-                  sasl,
-                  inets,
-                  ssl]}
+  {applications, [
+    kernel,
+    stdlib,
+    sasl,
+    inets,
+    ssl,
+    jsx
+  ]}
  ]}.
