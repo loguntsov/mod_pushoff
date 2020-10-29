@@ -21,6 +21,8 @@ This module supports type of push notification in message (means extended type o
 * `<push type='call'/>` - text of PN: call message
 * `<push type='none'/>` - don't send PN
 
+WARNING: !!!! If push tag is not presented, then push notification is not generated. This behaviour by default.
+
 ## Prerequisites
 
 * Erlang/OTP 19 or higher
