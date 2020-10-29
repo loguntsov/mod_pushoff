@@ -79,7 +79,7 @@ dispatch(#pushoff_registration{bare_jid = UserBare, token = Token, timestamp = T
 
 offline_message({_, #message{to = To} = Stanza} = Acc) ->
   Payload = stanza_to_payload(Stanza),
-  case proplists:get_value(push_type, Payload) of
+  case proplists:get_value(push_type, Payload, none) of
     none -> ok;
     _ ->
       case mod_pushoff_mnesia:list_registrations(To) of
