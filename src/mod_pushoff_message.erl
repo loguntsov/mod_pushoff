@@ -9,7 +9,7 @@
 body(Payload) ->
   PushType = proplists:get_value(push_type, Payload),
   case PushType of
-    hidden -> <<"Hidden message">>;
+    hidden -> <<"Hidden Message">>;
     call -> <<"Call message">>;
     _ -> <<"Incoming Message">>
   end.
