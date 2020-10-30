@@ -9,7 +9,7 @@ Supported backends:
 This module supports type of push notification in message (means extended type of message):
 
 ```
-<message xml:lang='en' to='test1@spokechat.ch' from='test2@spokechat.ch/1383651064974494952311794' 
+<message xml:lang='en' to='test1@chat.im' from='test2@chat.im/1383651064974494952311794' 
   type='chat' id='D6DD5DF1-6468-4607-BD80-4FF0C9DE3DAC' xmlns='jabber:client'>
     <request xmlns='urn:xmpp:chat-markers:0'/>
         <push type='hidden'/>
