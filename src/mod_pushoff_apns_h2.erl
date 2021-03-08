@@ -146,7 +146,7 @@ post(Host, Path) ->
 
 alert_headers(APNS, Topic, RawToken, ApnsPushType) ->
     Token = to_hex(RawToken),
-    post(APNS, <<"/3/device/", Token/binary>>) ++ [{<<"apns-push-type">>,atom_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
+    post(APNS, <<"/3/device/", Token/binary>>) ++ [{<<"apns-push-type">>, list_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
 
 render_payload(Payload) ->
     Alert = jsx:encode(#{

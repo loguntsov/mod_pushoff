@@ -24,6 +24,14 @@ This module supports type of push notification in message (means extended type o
 
 WARNING: !!!! If push tag is not presented, then push notification is not generated. This is behaviour by default.
 
+## How to build
+
+Enter the folder of the README.md file.
+``` bash
+docker build -t rebar3-build:1 .
+docker run -it -v $(pwd):$(pwd) -w $(pwd) rebar3-build:1 rebar3 compile
+```
+
 ## Prerequisites
 
 * Erlang/OTP 19 or higher
