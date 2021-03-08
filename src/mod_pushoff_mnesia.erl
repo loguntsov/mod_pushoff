@@ -31,16 +31,16 @@ mnesia_set_from_record({Name, Fields}) ->
              {error, stanza_error()} |
              {registered, ok}).
 
-register_client(Jid, BackendId, Token) ->
+register_client(Key, BackendId, Token) ->
     F = fun() ->
         MatchHeadReg =
-            #pushoff_registration{bare_jid = bare_jid(Jid), backend_id = BackendId, _='_'},
+            #pushoff_registration{key = Key, backend_id = BackendId, _='_'},
         ExistingReg =
             mnesia:select(pushoff_registration, [{MatchHeadReg, [], ['$_']}]),
         Registration =
             case ExistingReg of
                 [] ->
-                    #pushoff_registration{bare_jid = bare_jid(Jid),
+                    #pushoff_registration{key = Key,
                                           token = Token,
                                           backend_id = BackendId,
                                           timestamp = erlang:timestamp()};
@@ -73,14 +73,14 @@ unregister_client({Jid, Timestamp} = _DisableArgs) -> unregister_client(Jid, Tim
 
 unregister_client(#jid{luser = LUser, lserver = LServer}, Timestamp) ->
     unregister_client({LUser, LServer}, Timestamp);
-unregister_client({LUser, LServer}, Timestamp) ->
+unregister_client(Key, Timestamp) ->
     F = fun() ->
         [begin
              ?DEBUG("+++++ deleting registration ~p", [Reg]),
              mnesia:delete_object(Reg),
              Reg
          end || Reg <- mnesia:select(pushoff_registration,
-                                     [{#pushoff_registration{bare_jid = {LUser, LServer},
+                                     [{#pushoff_registration{key = Key,
                                                              timestamp = Timestamp,
                                                              _='_'},
                                        [], ['$_']}])]
@@ -98,9 +98,9 @@ unregister_client({LUser, LServer}, Timestamp) ->
 -spec(list_registrations(jid()) -> {error, stanza_error()} |
                                    {registrations, [pushoff_registration()]}).
 
-list_registrations(#jid{luser = LUser, lserver = LServer}) ->
+list_registrations(Key) ->
     F = fun() ->
-        MatchHead = #pushoff_registration{bare_jid = {LUser, LServer}, _='_'},
+        MatchHead = #pushoff_registration{key = Key, _='_'},
         mnesia:select(pushoff_registration, [{MatchHead, [], ['$_']}])
     end,
     case mnesia:transaction(F) of

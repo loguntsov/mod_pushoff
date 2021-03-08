@@ -52,12 +52,13 @@ stanza_to_payload(#message{id = Id, sub_els = SubEls } = Msg) ->
     false -> [];
     PushTag = #xmlel{} ->
       case fxml:get_tag_attr_s(<<"type">>, PushTag) of
-        <<"hidden">> -> [{ push_type, hidden }];
-        <<"call">> -> [{ push_type, call }];
-        <<"none">> -> [{ push_type, none }];
+        <<"hidden">> -> [{ push_type, hidden}, {apns_push_type, alert}];
+        <<"call">> -> [{ push_type, call }, {apns_push_type, voip}];
+        <<"none">> -> [{ push_type, none }, {apns_push_type, alert}];
         <<"body">> -> [
             {push_type, body },
-            {body, Msg#message.body },
+            {body, Msg#message.body},
+            {apns_push_type, alert},
             {from, jid:to_string(Msg#message.from)}
           ];
         _ -> []
@@ -68,11 +69,11 @@ stanza_to_payload(_) -> [].
 
 -spec(dispatch(pushoff_registration(), [{atom(), any()}]) -> ok).
 
-dispatch(#pushoff_registration{bare_jid = UserBare, token = Token, timestamp = Timestamp,
+dispatch(#pushoff_registration{key = Key, token = Token, timestamp = Timestamp,
                                backend_id = BackendId},
          Payload) ->
-    DisableArgs = {UserBare, Timestamp},
-    gen_server:cast(backend_worker(BackendId), {dispatch, UserBare, Payload, Token, DisableArgs}),
+    DisableArgs = {Key, Timestamp},
+    gen_server:cast(backend_worker(BackendId), {dispatch, Key, Payload, Token, DisableArgs}),
     ok.
 
 
@@ -85,9 +86,23 @@ dispatch(#pushoff_registration{bare_jid = UserBare, token = Token, timestamp = T
 offline_message({_, #message{to = To} = Stanza} = Acc) ->
   Payload = stanza_to_payload(Stanza),
   case proplists:get_value(push_type, Payload, none) of
-    none -> ok;
+    none ->
+      ok;
+    call ->
+      Jid = #jid{user = To#jid.user, server = To#jid.server},
+      Key = {Jid, call},
+      case mod_pushoff_mnesia:list_registrations(Key) of
+        {registrations, []} ->
+          ?DEBUG("~p is not_subscribed", [To]),
+          ok;
+        {registrations, Rs} ->
+          [dispatch(R, Payload) || R <- Rs],
+          ok;
+        {error, _} -> ok
+      end;
     _ ->
-      case mod_pushoff_mnesia:list_registrations(To) of
+      Key = #jid{user = To#jid.user, server = To#jid.server},
+      case mod_pushoff_mnesia:list_registrations(Key) of
         {registrations, []} ->
           ?DEBUG("~p is not_subscribed", [To]),
           ok;
@@ -156,11 +171,33 @@ adhoc_perform_action(<<"register-push-apns-h2">>, #jid{lserver = LServer} = From
                 [Base64Token] ->
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
-                        Token -> mod_pushoff_mnesia:register_client(From, {LServer, BackendRef}, Token)
+                        Token ->
+                          Key = #jid{user = From#jid.user, server = From#jid.server},
+                          mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
+adhoc_perform_action(<<"register-push-apns-h2-voip">>, #jid{lserver = LServer} = From, XData) ->
+  BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
+                 [Key] -> {mod_pushoff_apns_h2, Key};
+                 _ -> undefined
+               end,
+  case validate_backend_ref(LServer, BackendRef) of
+    {error, E} -> {error, E};
+    {ok, BackendRef} ->
+      case xmpp_util:get_xdata_values(<<"token">>, XData) of
+        [Base64Token] ->
+          case catch base64:decode(Base64Token) of
+            {'EXIT', _} -> {error, xmpp:err_bad_request()};
+            Token ->
+              Jid = #jid{user = From#jid.user, server = From#jid.server},
+              Key = {Jid, call},
+              mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
+          end;
+        _ -> {error, xmpp:err_bad_request()}
+      end
+  end;
 adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, XData) ->
     BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
         [Key] -> {mod_pushoff_apns, Key};
@@ -173,11 +210,33 @@ adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, X
                 [Base64Token] ->
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
-                        Token -> mod_pushoff_mnesia:register_client(From, {LServer, BackendRef}, Token)
+                        Token ->
+                          Key = #jid{user = From#jid.user, server = From#jid.server},
+                          mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
+adhoc_perform_action(<<"register-push-apns-voip">>, #jid{lserver = LServer} = From, XData) ->
+  BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
+                 [Key] -> {mod_pushoff_apns, Key};
+                 _ -> mod_pushoff_apns
+               end,
+  case validate_backend_ref(LServer, BackendRef) of
+    {error, E} -> {error, E};
+    {ok, BackendRef} ->
+      case xmpp_util:get_xdata_values(<<"token">>, XData) of
+        [Base64Token] ->
+          case catch base64:decode(Base64Token) of
+            {'EXIT', _} -> {error, xmpp:err_bad_request()};
+            Token ->
+              Jid = #jid{user = From#jid.user, server = From#jid.server},
+              Key = {Jid, call},
+              mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
+          end;
+        _ -> {error, xmpp:err_bad_request()}
+      end
+  end;
 adhoc_perform_action(<<"register-push-fcm">>, #jid{lserver = LServer} = From, XData) ->
     BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
         [Key] -> {fcm, Key};

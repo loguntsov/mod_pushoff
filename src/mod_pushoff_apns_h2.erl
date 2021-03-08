@@ -144,9 +144,9 @@ response_status([{<<":status">>, Status}|_] = Headers, Data) ->
 post(Host, Path) ->
     [{<<":method">>,<<"POST">>}, {<<":scheme">>,<<"https">>}, {<<":authority">>,Host}, {<<":path">>,Path}].
 
-alert_headers(APNS, Topic, RawToken) ->
+alert_headers(APNS, Topic, RawToken, ApnsPushType) ->
     Token = to_hex(RawToken),
-    post(APNS, <<"/3/device/", Token/binary>>) ++ [{<<"apns-push-type">>,<<"alert">>}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
+    post(APNS, <<"/3/device/", Token/binary>>) ++ [{<<"apns-push-type">>,atom_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
 
 render_payload(Payload) ->
     Alert = jsx:encode(#{
@@ -156,7 +156,7 @@ render_payload(Payload) ->
     <<"{ \"aps\" : { \"alert\" : ",Alert/binary, "\"mutable-content\": 1 }, \"message-id\": 42 }">>.
 
 make_request(APNS, Topic, {dispatch, _UserBare, Payload, Token, _DisableArgs}) ->
-    {alert_headers(APNS, Topic, Token), render_payload(Payload)}.
+    {alert_headers(APNS, Topic, Token, mod_pushoff_message:apns_push_type(Payload)), render_payload(Payload)}.
 
 % https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/handling_notification_responses_from_apns
 status(<<"200">>) -> ok;
