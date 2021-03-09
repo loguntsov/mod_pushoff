@@ -25,7 +25,7 @@
 -author('dimskii123@gmail.com').
 
 -behaviour(gen_server).
--compile(export_all).
+% -compile(export_all).
 -export([init/1,
          handle_info/2,
          handle_call/3,

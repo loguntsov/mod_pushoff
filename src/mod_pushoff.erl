@@ -25,7 +25,7 @@
 
 -behaviour(gen_mod).
 
--compile(export_all).
+% -compile(export_all).
 -export([start/2, stop/1, reload/3, depends/2, mod_options/1, mod_opt_type/1, parse_backends/1,
          offline_message/1, adhoc_local_commands/4, remove_user/2,
          health/0]).
@@ -173,8 +173,8 @@ adhoc_perform_action(<<"register-push-apns-h2">>, #jid{lserver = LServer} = From
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
                         Token ->
-                          Key = {From#jid.luser, From#jid.lserver},
-                          mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
+                          Key2 = {From#jid.luser, From#jid.lserver},
+                          mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
@@ -192,8 +192,8 @@ adhoc_perform_action(<<"register-push-apns-h2-voip">>, #jid{lserver = LServer} =
           case catch base64:decode(Base64Token) of
             {'EXIT', _} -> {error, xmpp:err_bad_request()};
             Token ->
-              Key = {{From#jid.luser, server = From#jid.server}, voip},
-              mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
+              Key2 = {{From#jid.luser, server = From#jid.server}, voip},
+              mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
           end;
         _ -> {error, xmpp:err_bad_request()}
       end
@@ -211,8 +211,8 @@ adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, X
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
                         Token ->
-                          Key = #jid{user = From#jid.user, server = From#jid.server},
-                          mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
+                          Key2 = #jid{user = From#jid.user, server = From#jid.server},
+                          mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
@@ -230,8 +230,8 @@ adhoc_perform_action(<<"register-push-apns-voip">>, #jid{lserver = LServer} = Fr
           case catch base64:decode(Base64Token) of
             {'EXIT', _} -> {error, xmpp:err_bad_request()};
             Token ->
-              Key = {From#jid.luser, From#jid.lserver, voip},
-              mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, Token)
+              Key2 = {From#jid.luser, From#jid.lserver, voip},
+              mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
           end;
         _ -> {error, xmpp:err_bad_request()}
       end
@@ -246,8 +246,8 @@ adhoc_perform_action(<<"register-push-fcm">>, #jid{lserver = LServer} = From, XD
         {ok, BackendRef} ->
             case xmpp_util:get_xdata_values(<<"token">>, XData) of
                 [AsciiToken] ->
-                  Key = {From#jid.luser, From#jid.lserver},
-                  mod_pushoff_mnesia:register_client(Key, {LServer, BackendRef}, AsciiToken);
+                  Key2 = {From#jid.luser, From#jid.lserver},
+                  mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, AsciiToken);
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;

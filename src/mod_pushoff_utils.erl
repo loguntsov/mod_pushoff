@@ -22,7 +22,7 @@
 
 -author('dimskii123@gmail.com').
 
--compile(export_all).
+% -compile(export_all).
 -export([enqueue_some/4,
          enqueue_some/1,
          force_string/1]).

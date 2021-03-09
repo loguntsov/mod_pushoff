@@ -1,6 +1,6 @@
 %%%----------------------------------------------------------------------
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -36,13 +36,31 @@
 
 -define(CRITICAL_MSG(Format, Args),
 	begin lager:critical(Format, Args), ok end).
+-else.
+-include_lib("kernel/include/logger.hrl").
+
+-define(DEBUG(Format, Args),
+	begin ?LOG_DEBUG(Format, Args), ok end).
+
+-define(INFO_MSG(Format, Args),
+	begin ?LOG_INFO(Format, Args), ok end).
+
+-define(WARNING_MSG(Format, Args),
+	begin ?LOG_WARNING(Format, Args), ok end).
+
+-define(ERROR_MSG(Format, Args),
+	begin ?LOG_ERROR(Format, Args), ok end).
+
+-define(CRITICAL_MSG(Format, Args),
+	begin ?LOG_CRITICAL(Format, Args), ok end).
+-endif.
 
 %% Use only when trying to troubleshoot test problem with ExUnit
 -define(EXUNIT_LOG(Format, Args),
-        case lists:keyfind(logger, 1, application:loaded_applications()) of
-            false -> ok;
-            _ -> 'Elixir.Logger':bare_log(error, io_lib:format(Format, Args), [?MODULE])
-        end).
+	case lists:keyfind(logger, 1, application:loaded_applications()) of
+		false -> ok;
+		_ -> 'Elixir.Logger':bare_log(error, io_lib:format(Format, Args), [?MODULE])
+	end).
 
 %% Uncomment if you want to debug p1_fsm/gen_fsm
 %%-define(DBGFSM, true).

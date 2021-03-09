@@ -6,7 +6,7 @@
 -module(mod_pushoff_apns_h2).
 -mode(compile).
 -behaviour(gen_server).
--compile(export_all).
+% -compile(export_all).
 -export([init/1, handle_cast/2, handle_call/3, handle_info/2, terminate/2, code_change/3]).
 
 % -include("logger.hrl").
