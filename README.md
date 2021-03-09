@@ -95,11 +95,11 @@ modules:
         certfile: "/etc/ssl/private/apns_example_app.pem"
         gateway: "gateway.push.apple.com"
       -
-          type: mod_pushoff_apns_voip # deprecated
-          # make sure this pem file contains only one(!) certificate + key pair
-          certfile: "/etc/ssl/private/apns_example_app.pem"
-          gateway: "gateway.push.apple.com"       
-        
+        type: mod_pushoff_apns # deprecated
+        backend_ref: "voip"
+        # make sure this pem file contains only one(!) certificate + key pair
+        certfile: "/etc/ssl/private/apns_example_app.pem"
+        gateway: "gateway.push.apple.com"       
         
       -
         type: mod_pushoff_apns_h2
@@ -111,9 +111,9 @@ modules:
         topic: "com.acme.your.app" # this should be your bundle id
         
       -
-        type: mod_pushoff_apns_h2_viop
+        type: mod_pushoff_apns_h2
         # you can add more backends of each type by specifying backend_ref with unique names
-        backend_ref: "sandbox"
+        backend_ref: "voip"
         # make sure this pem file contains only one(!) certificate + key pair
         certfile: "/etc/ssl/private/apns_example_app_sandbox.pem"
         gateway: "gateway.sandbox.push.apple.com"
