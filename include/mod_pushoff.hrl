@@ -1,4 +1,4 @@
--type key() :: {bare_jid(), call} | bare_jid().
+-type key() :: {binary(), binary(), atom()} | bare_jid().
 -type bare_jid() :: {binary(), binary()}.
 -type backend_ref() :: apns | fcm | {apns, binary()} | {fcm, binary()}.
 -type backend_id() :: {binary(), backend_ref()}.

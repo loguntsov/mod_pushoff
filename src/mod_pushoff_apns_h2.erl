@@ -9,7 +9,7 @@
 -compile(export_all).
 -export([init/1, handle_cast/2, handle_call/3, handle_info/2, terminate/2, code_change/3]).
 
-%-include("logger.hrl").
+% -include("logger.hrl").
 -define(ERROR_MSG(X,Y), io:format(X,Y)).
 -define(WARNING_MSG(X,Y), io:format(X,Y)).
 -define(DEBUG(X,Y), io:format(X,Y)).
@@ -34,7 +34,12 @@
       sending := sending()}.
 
 init(#{backend_type := ?MODULE, certfile := Certfile, gateway := APNS, topic := Topic}) ->
-    {ok, #{send_queue => queue:new(), connection => undefined, certfile => erlang:binary_to_list(Certfile), apns => APNS, topic => erlang:iolist_to_binary(Topic), sending => undefined}}.
+    {ok, #{send_queue => queue:new(),
+        connection => undefined,
+        certfile => erlang:binary_to_list(Certfile),
+        apns => APNS,
+        topic => erlang:iolist_to_binary(Topic),
+        sending => undefined}}.
 
 handle_cast({dispatch, _UserBare, _Payload, Token, _DisableArgs} = M, #{send_queue := Q} = State) ->
     case Token of
@@ -60,22 +65,31 @@ handle_info(dequeue, #{connection := undefined} = State) ->
     {noreply, do_connect(State)};
 handle_info(dequeue, #{sending := #{}} = State) ->
     {noreply, State};
-handle_info(dequeue, #{connection := Connection, send_queue := Q, apns := APNS, topic := Topic, sending := undefined} = State) ->
+handle_info(dequeue, #{connection := Connection,
+    send_queue := Q,
+    apns := APNS,
+    topic := Topic,
+    sending := undefined} = State) ->
     case queue:out(Q) of
         {empty, Q} -> {noreply, State};
         {{value, M}, Q2} -> {noreply, State#{sending => do_send(M, APNS, Topic, Connection), send_queue => Q2}}
     end;
 
-handle_info({'RECV_HEADERS', StreamId, RecvHeaders}, #{sending := #{message := _, stream_id := StreamId} = ReqState} = State) ->
+handle_info({'RECV_HEADERS', StreamId, RecvHeaders},
+    #{sending := #{message := _, stream_id := StreamId} = ReqState} = State) ->
     {noreply, State#{sending => ReqState#{h2state => have_headers, headers => RecvHeaders}}};
-handle_info({'RECV_DATA', StreamId, RecvData, false, false}, #{sending := #{message := _, stream_id := StreamId} = ReqState} = State) ->
+handle_info({'RECV_DATA', StreamId, RecvData, false, false},
+    #{sending := #{message := _, stream_id := StreamId} = ReqState} = State) ->
     {noreply, State#{sending => ReqState#{h2state => have_data, data => RecvData}}};
-handle_info({'END_STREAM', StreamId}, #{sending := #{message := _, stream_id := StreamId}} = State) ->
+handle_info({'END_STREAM', StreamId},
+    #{sending := #{message := _, stream_id := StreamId}} = State) ->
     do_handle_response(State);
-handle_info({'RESET_BY_PEER', StreamId, Code}, #{sending := #{message := _, stream_id := StreamId}} = State) ->
+handle_info({'RESET_BY_PEER', StreamId, Code},
+    #{sending := #{message := _, stream_id := StreamId}} = State) ->
     ?WARNING_MSG("stream reset by peer with code ~p~n", [Code]),
     do_handle_response(State);
-handle_info({'CLOSED_BY_PEER', StreamId, Code}, #{sending := #{message := _, stream_id := StreamId}} = State) ->
+handle_info({'CLOSED_BY_PEER', StreamId, Code},
+    #{sending := #{message := _, stream_id := StreamId}} = State) ->
     ?WARNING_MSG("stream reset by peer with code ~p~n", [Code]),
     do_handle_response(State);
 
@@ -91,7 +105,9 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 loss_report(#{send_queue := Q}) ->
     ?WARNING_MSG("mod_pushoff_apns_h2 lost ~p messages~n", [queue:len(Q)]).
 
-do_handle_response(#{sending := #{message := M, stream_id := _StreamId, headers := Headers, data := Data}, connection := Connection, send_queue := Q} = State) ->
+do_handle_response(#{sending := #{message := M, stream_id := _StreamId, headers := Headers, data := Data},
+    connection := Connection,
+    send_queue := Q} = State) ->
     case response_status(Headers, Data) of
         unregistered ->
             {dispatch, _UserBare, _Payload, _Token, DisableArgs} = M,
@@ -117,8 +133,14 @@ do_send(M, APNS, Topic, Connection) ->
     #{message => M, stream_id => StreamId, h2state => sent, headers => undefined, data => undefined}.
 
 do_connect(#{certfile := Certfile, apns := APNS, topic := Topic, sending := Sending} = State) ->
-    {ok, Connection} = mod_pushoff_h2:new_connection(ssl, erlang:binary_to_list(APNS), 443,
-        [{max_concurrent_streams, 1}, {transport_options, [{certfile, Certfile}, {alpn_advertised_protocols,[<<"h2">>]}]}]),
+    {ok, Connection} = mod_pushoff_h2:new_connection(
+        ssl,
+        erlang:binary_to_list(APNS),
+        443,
+        [
+            {max_concurrent_streams, 1},
+            {transport_options, [{certfile, Certfile}, {alpn_advertised_protocols,[<<"h2">>]}]}
+        ]),
     Sending1 = case Sending of
         undefined -> undefined;
         #{message := M} -> do_send(M, APNS, Topic, Connection)
@@ -135,7 +157,9 @@ response_status([{<<":status">>, Status}|_] = Headers, Data) ->
                     unregistered;
                 _ -> ?ERROR_MSG("mod_pushoff_apns_h2 bad request: ~p", [{Headers, Data}]), crash
             end;
-        authentication_error -> ?ERROR_MSG("mod_pushoff_apns_h2 bad authentication (wrong or expired certfile?): ~p", [{Headers, Data}]), crash;
+        authentication_error ->
+            ?ERROR_MSG("mod_pushoff_apns_h2 bad authentication (wrong or expired certfile?): ~p", [{Headers, Data}]),
+            crash;
         too_many_requests -> ok; % one device is receiving too many messages; silently dropping
         internal_server_error -> transient;
         server_unavailable -> transient
@@ -146,7 +170,8 @@ post(Host, Path) ->
 
 alert_headers(APNS, Topic, RawToken, ApnsPushType) ->
     Token = to_hex(RawToken),
-    post(APNS, <<"/3/device/", Token/binary>>) ++ [{<<"apns-push-type">>, list_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
+    post(APNS, <<"/3/device/", Token/binary>>)
+    ++ [{<<"apns-push-type">>, list_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
 
 render_payload(Payload) ->
     Alert = jsx:encode(#{
@@ -185,7 +210,12 @@ main([Host, Certfile, Topic, Token]) ->
     ssl:start(),
     dbg:tracer(),
     dbg:p(new, m),
-    {ok, Pid} = gen_server:start_link(?MODULE, #{backend_type => apns, certfile => Certfile, gateway => iolist_to_binary(Host), topic => iolist_to_binary(Topic)}, []),
+    {ok, Pid} = gen_server:start_link(?MODULE,
+        #{backend_type => apns,
+            certfile => Certfile,
+            gateway => iolist_to_binary(Host),
+            topic => iolist_to_binary(Topic)},
+        []),
     gen_server:cast(Pid, {dispatch, undefined, undefined, iolist_to_binary(Token), undefined}),
     erlang:send_after(0, self(), {?MODULE, Pid}),
     receiveall().
