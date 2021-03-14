@@ -11,6 +11,7 @@ body(Payload) ->
   case PushType of
     hidden -> <<"Hidden Message">>;
     call -> <<"Call message">>;
+    message -> <<"Incoming chat message">>;
     body -> proplists:get_value(body, Payload)
   end.
 

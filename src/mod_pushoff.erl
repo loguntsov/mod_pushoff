@@ -59,7 +59,7 @@ stanza_to_payload(#message{id = Id, sub_els = SubEls } = Msg) ->
           {apns_push_type, ?ALERT}
         ];
         <<"call">> -> [
-          { push_type, call},
+          {push_type, call},
           {apns_push_type, ?VOIP}
         ];
         <<"none">> -> [
@@ -67,8 +67,7 @@ stanza_to_payload(#message{id = Id, sub_els = SubEls } = Msg) ->
           {apns_push_type, ?ALERT}
         ];
         <<"message">> ->
-          {push_type, body},
-          {body, "Incoming chat message"},
+          {push_type, message},
           {apns_push_type, ?ALERT},
           {from, jid:to_string(Msg#message.from)};
         <<"body">> -> [
