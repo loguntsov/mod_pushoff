@@ -66,10 +66,11 @@ stanza_to_payload(#message{id = Id, sub_els = SubEls } = Msg) ->
           {push_type, none},
           {apns_push_type, ?ALERT}
         ];
-        <<"message">> ->
-          {push_type, message},
-          {apns_push_type, ?ALERT},
-          {from, jid:to_string(Msg#message.from)};
+        <<"message">> -> [
+            {push_type, message},
+            {apns_push_type, ?ALERT},
+            {from, jid:to_string(Msg#message.from)}
+          ];
         <<"body">> -> [
             {push_type, body},
             {body, Msg#message.body},
