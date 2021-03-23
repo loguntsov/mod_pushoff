@@ -168,10 +168,10 @@ response_status([{<<":status">>, Status}|_] = Headers, Data) ->
 post(Host, Path) ->
     [{<<":method">>,<<"POST">>}, {<<":scheme">>,<<"https">>}, {<<":authority">>,Host}, {<<":path">>,Path}].
 
-alert_headers(APNS, Topic, RawToken, ApnsPushType) ->
-    Token = to_hex(RawToken),
+alert_headers(APNS, Topic, Token, ApnsPushType) ->
+    % Token = to_hex(RawToken),
     post(APNS, <<"/3/device/", Token/binary>>)
-    ++ [{<<"apns-push-type">>, list_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
+    ++ [{<<"apns-push-type">>, iolist_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
 
 render_payload(Payload) ->
     Alert = jsx:encode(#{
@@ -213,7 +213,7 @@ main([Host, Certfile, Topic, Token]) ->
     {ok, Pid} = gen_server:start_link(?MODULE,
         #{backend_type => apns,
             certfile => Certfile,
-            gateway => iolist_to_binary(Host),
+                gateway => iolist_to_binary(Host),
             topic => iolist_to_binary(Topic)},
         []),
     gen_server:cast(Pid, {dispatch, undefined, undefined, iolist_to_binary(Token), undefined}),
