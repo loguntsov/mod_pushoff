@@ -6,10 +6,36 @@ Supported backends:
 - `mod_pushoff_apns_h2`: [Apple APNs over http/2](https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns)
 - `mod_pushoff_fcm`: [Google Firebase Cloud Messaging HTTP Protocol](https://firebase.google.com/docs/cloud-messaging/http-server-ref)
 
+This module supports type of push notification in message (means extended type of message):
+
+```
+<message xml:lang='en' to='test1@chat.im' from='test2@chat.im/1383651064974494952311794' 
+  type='chat' id='D6DD5DF1-6468-4607-BD80-4FF0C9DE3DAC' xmlns='jabber:client'>
+    <request xmlns='urn:xmpp:chat-markers:0'/>
+        <push type='hidden'/>
+    <body>Hello</body>
+</message>
+```
+
+* `<push type='hidden'/>` - text of PN: hidden message
+* `<push type='call'/>` - text of PN: call message
+* `<push type='none'/>` - don't send PN
+* `<push type='body'/>` - sends PN with text from message and field `from` (if it is possible).
+
+WARNING: !!!! If push tag is not presented, then push notification is not generated. This is behaviour by default.
+
+## How to build
+
+Enter the folder of the README.md file.
+``` bash
+docker build -t rebar3-build:1 .
+docker run -it -v $(pwd):$(pwd) -w $(pwd) rebar3-build:1 rebar3 compile
+```
+
 ## Prerequisites
 
 * Erlang/OTP 19 or higher
-* ejabberd 18.01
+* ejabberd 20.07
 
 ## Installation
 
@@ -69,9 +95,25 @@ modules:
         certfile: "/etc/ssl/private/apns_example_app.pem"
         gateway: "gateway.push.apple.com"
       -
+        type: mod_pushoff_apns # deprecated
+        backend_ref: "voip"
+        # make sure this pem file contains only one(!) certificate + key pair
+        certfile: "/etc/ssl/private/apns_example_app.pem"
+        gateway: "gateway.push.apple.com"       
+        
+      -
         type: mod_pushoff_apns_h2
         # you can add more backends of each type by specifying backend_ref with unique names
         backend_ref: "sandbox"
+        # make sure this pem file contains only one(!) certificate + key pair
+        certfile: "/etc/ssl/private/apns_example_app_sandbox.pem"
+        gateway: "gateway.sandbox.push.apple.com"
+        topic: "com.acme.your.app" # this should be your bundle id
+        
+      -
+        type: mod_pushoff_apns_h2
+        # you can add more backends of each type by specifying backend_ref with unique names
+        backend_ref: "voip"
         # make sure this pem file contains only one(!) certificate + key pair
         certfile: "/etc/ssl/private/apns_example_app_sandbox.pem"
         gateway: "gateway.sandbox.push.apple.com"
