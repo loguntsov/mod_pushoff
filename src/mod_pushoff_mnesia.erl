@@ -63,19 +63,16 @@ register_client(Key, BackendId, Token) ->
             {registered, ok}
     end.
 
--spec(unregister_client({bare_jid() | jid(), erlang:timestamp() | '_'}) ->
+-spec(unregister_client({key(), erlang:timestamp()}) ->
+            {error, stanza_error()} |
+            {unregistered, [pushoff_registration()]}).
+unregister_client({Key, Timestamp}) ->
+  unregister_client(Key, Timestamp).
+
+-spec(unregister_client(key(), erlang:timestamp() | '_') ->
              {error, stanza_error()} |
              {unregistered, [pushoff_registration()]}).
-
-unregister_client({Jid, Timestamp} = _DisableArgs) -> unregister_client(Jid, Timestamp).
-
--spec(unregister_client(bare_jid() | jid(), erlang:timestamp() | '_') ->
-             {error, stanza_error()} |
-             {unregistered, [pushoff_registration()]}).
-
-unregister_client(#jid{luser = LUser, lserver = LServer}, Timestamp) ->
-    unregister_client({LUser, LServer}, Timestamp);
-unregister_client({LUser, LServer}, Timestamp) ->
+unregister_client(Key, Timestamp) ->
   F = fun() ->
       [
         begin
@@ -85,12 +82,7 @@ unregister_client({LUser, LServer}, Timestamp) ->
         end || Reg <-
           [
             mnesia:select(pushoff_registration,
-              [{#pushoff_registration{key = {LUser, LServer},
-                timestamp = Timestamp,
-                _='_'},
-                [], ['$_']}])
-           || mnesia:select(pushoff_registration,
-              [{#pushoff_registration{key = {LUser, LServer, voip},
+              [{#pushoff_registration{key = Key,
                 timestamp = Timestamp,
                 _='_'},
                 [], ['$_']}])
