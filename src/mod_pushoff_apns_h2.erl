@@ -6,7 +6,7 @@
 -module(mod_pushoff_apns_h2).
 -mode(compile).
 -behaviour(gen_server).
-% -compile(export_all).
+-compile(export_all).
 -export([init/1, handle_cast/2, handle_call/3, handle_info/2, terminate/2, code_change/3]).
 
 % -include("logger.hrl").
@@ -168,8 +168,9 @@ response_status([{<<":status">>, Status}|_] = Headers, Data) ->
 post(Host, Path) ->
     [{<<":method">>,<<"POST">>}, {<<":scheme">>,<<"https">>}, {<<":authority">>,Host}, {<<":path">>,Path}].
 
-alert_headers(APNS, Topic, Token, ApnsPushType) ->
-    % Token = to_hex(RawToken),
+alert_headers(APNS, Topic, RawToken, ApnsPushType) ->
+    Token = to_hex(RawToken),
+    ?DEBUG("Token:~p~n", [Token]),
     post(APNS, <<"/3/device/", Token/binary>>)
     ++ [{<<"apns-push-type">>, iolist_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].
 
