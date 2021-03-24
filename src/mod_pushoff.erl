@@ -86,6 +86,7 @@ stanza_to_payload(_) -> [].
 -spec(dispatch(pushoff_registration(), [{atom(), any()}]) -> ok).
 
 dispatch(#pushoff_registration{key = Key, token = Token, timestamp = Timestamp, backend_id = BackendId}, Payload) ->
+  ?DEBUG("dispatch#start",[]),
   DisableArgs = {Key, Timestamp},
   gen_server:cast(backend_worker(BackendId), {dispatch, Key, Payload, Token, DisableArgs}),
   ok.
@@ -97,6 +98,7 @@ dispatch(#pushoff_registration{key = Key, token = Token, timestamp = Timestamp, 
 
 -spec(offline_message({atom(), message()}) -> {atom(), message()}).
 offline_message({_, #message{to = To} = Stanza} = Acc) ->
+  ?DEBUG("offline_message#start",[]),
   Payload = stanza_to_payload(Stanza),
   case proplists:get_value(push_type, Payload, none) of
     none ->

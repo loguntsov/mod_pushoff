@@ -9,7 +9,7 @@
 -compile(export_all).
 -export([init/1, handle_cast/2, handle_call/3, handle_info/2, terminate/2, code_change/3]).
 
-% -include("logger.hrl").
+-include("logger.hrl").
 -define(ERROR_MSG(X,Y), io:format(X,Y)).
 -define(WARNING_MSG(X,Y), io:format(X,Y)).
 -define(DEBUG(X,Y), io:format(X,Y)).
@@ -42,6 +42,7 @@ init(#{backend_type := ?MODULE, certfile := Certfile, gateway := APNS, topic := 
         sending => undefined}}.
 
 handle_cast({dispatch, _UserBare, _Payload, Token, _DisableArgs} = M, #{send_queue := Q} = State) ->
+    ?DEBUG("handle_cast#start,token:~p~n",[Token]),
     case Token of
         <<"babababababababababababababababababababababababababababababababa">> ->
             {noreply, State}; %% magic simulator token, ignore
@@ -57,7 +58,7 @@ handle_call(_Req, _From, State) ->
     {reply, {error, badarg}, State}.
 
 handle_info({'EXIT', From, Reason}, #{connection := From} = State) when is_pid(From) ->
-    ?ERROR_MSG("mod_pushoff_apns_h2 connection terminated ~p", [Reason]),
+    ?ERROR_MSG("mod_pushoff_apns_h2 connection terminated ~p~n", [Reason]),
     {noreply, do_connect(State)};
 
 handle_info(dequeue, #{connection := undefined} = State) ->
@@ -126,6 +127,7 @@ do_handle_response(#{sending := #{message := M, stream_id := _StreamId, headers 
     end.
 
 do_send(M, APNS, Topic, Connection) ->
+    ?DEBUG("do_send#start.~p~n",[M]),
     {Headers, Payload} = make_request(APNS, Topic, M),
     {ok, StreamId} = mod_pushoff_h2:new_stream(Connection, []),
     ok = mod_pushoff_h2:send_headers(Connection, StreamId, Headers, []),
