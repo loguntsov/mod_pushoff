@@ -97,6 +97,7 @@ dispatch(#pushoff_registration{key = Key, token = Token, timestamp = Timestamp, 
 
 -spec(offline_message({atom(), message()}) -> {atom(), message()}).
 offline_message({_, #message{to = To} = Stanza} = Acc) ->
+  ?DEBUG("Stanza:~p~n",[Stanza]),
   Payload = stanza_to_payload(Stanza),
   case proplists:get_value(push_type, Payload, none) of
     none ->
@@ -108,6 +109,7 @@ offline_message({_, #message{to = To} = Stanza} = Acc) ->
           ?DEBUG("~p is not_subscribed", [To]),
           ok;
         {registrations, Rs} ->
+
           [dispatch(R, Payload) || R <- Rs],
           ok;
         {error, _} -> ok
@@ -119,6 +121,7 @@ offline_message({_, #message{to = To} = Stanza} = Acc) ->
           ?DEBUG("~p is not_subscribed", [To]),
           ok;
         {registrations, Rs} ->
+          ?DEBUG("Rs:~p~n",[Rs]),
           [dispatch(R, Payload) || R <- Rs],
           ok;
         {error, _} -> ok
