@@ -21,6 +21,7 @@
 -author('christian@rechenwerk.net').
 -author('proger@wilab.org.ua').
 -author('dimskii123@gmail.com').
+-author('defeng.liang.cn@gmail.com').
 
 -behaviour(gen_mod).
 
@@ -36,6 +37,8 @@
 -include("mod_pushoff.hrl").
 
 -define(OFFLINE_HOOK_PRIO, 1). % must fire before mod_offline (which has 50)
+-define(ALERT, "alert").
+-define(VOIP, "voip").
 
 -type apns_config() :: #{backend_type := mod_pushoff_apns_h2, certfile := binary(), gateway := binary(), topic := binary()}.
 -type fcm_config() :: #{backend_type := mod_pushoff_fcm, gateway := binary(), api_key := binary()}.
@@ -46,15 +49,34 @@
 %
 
 -spec(stanza_to_payload(message()) -> [{atom(), any()}]).
-
-stanza_to_payload(#message{id = Id, sub_els = SubEls }) ->
+stanza_to_payload(#message{id = Id, sub_els = SubEls } = Msg) ->
   PushType = case fxml:get_subtag(#xmlel{ children = SubEls }, <<"push">>) of
     false -> [];
-    PushTag ->
+    PushTag = #xmlel{} ->
       case fxml:get_tag_attr_s(<<"type">>, PushTag) of
-        <<"hidden">> -> [{ push_type, hidden }];
-        <<"call">> -> [{ push_type, call }];
-        <<"none">> -> [{ push_type, none }];
+        <<"hidden">> -> [
+          {push_type, hidden},
+          {apns_push_type, ?ALERT}
+        ];
+        <<"call">> -> [
+          {push_type, call},
+          {apns_push_type, ?VOIP}
+        ];
+        <<"none">> -> [
+          {push_type, none},
+          {apns_push_type, ?ALERT}
+        ];
+        <<"message">> -> [
+            {push_type, message},
+            {apns_push_type, ?ALERT},
+            {from, jid:to_string(Msg#message.from)}
+          ];
+        <<"body">> -> [
+            {push_type, body},
+            {body, Msg#message.body},
+            {apns_push_type, ?ALERT},
+            {from, jid:to_string(Msg#message.from)}
+          ];
         _ -> []
       end
   end,
@@ -63,12 +85,10 @@ stanza_to_payload(_) -> [].
 
 -spec(dispatch(pushoff_registration(), [{atom(), any()}]) -> ok).
 
-dispatch(#pushoff_registration{bare_jid = UserBare, token = Token, timestamp = Timestamp,
-                               backend_id = BackendId},
-         Payload) ->
-    DisableArgs = {UserBare, Timestamp},
-    gen_server:cast(backend_worker(BackendId), {dispatch, UserBare, Payload, Token, DisableArgs}),
-    ok.
+dispatch(#pushoff_registration{key = Key, token = Token, timestamp = Timestamp, backend_id = BackendId}, Payload) ->
+  DisableArgs = {Key, Timestamp},
+  gen_server:cast(backend_worker(BackendId), {dispatch, Key, Payload, Token, DisableArgs}),
+  ok.
 
 
 %
@@ -76,17 +96,32 @@ dispatch(#pushoff_registration{bare_jid = UserBare, token = Token, timestamp = T
 %
 
 -spec(offline_message({atom(), message()}) -> {atom(), message()}).
-
 offline_message({_, #message{to = To} = Stanza} = Acc) ->
+  ?DEBUG("Stanza:~p~n",[Stanza]),
   Payload = stanza_to_payload(Stanza),
   case proplists:get_value(push_type, Payload, none) of
-    none -> ok;
-    _ ->
-      case mod_pushoff_mnesia:list_registrations(To) of
+    none ->
+      ok;
+    call ->
+      Key = {To#jid.luser, To#jid.lserver, voip},
+      case mod_pushoff_mnesia:list_registrations(Key) of
         {registrations, []} ->
           ?DEBUG("~p is not_subscribed", [To]),
           ok;
         {registrations, Rs} ->
+
+          [dispatch(R, Payload) || R <- Rs],
+          ok;
+        {error, _} -> ok
+      end;
+    _ ->
+      Key = {To#jid.luser, To#jid.lserver},
+      case mod_pushoff_mnesia:list_registrations(Key) of
+        {registrations, []} ->
+          ?DEBUG("~p is not_subscribed", [To]),
+          ok;
+        {registrations, Rs} ->
+          ?DEBUG("Rs:~p~n",[Rs]),
           [dispatch(R, Payload) || R <- Rs],
           ok;
         {error, _} -> ok
@@ -94,14 +129,11 @@ offline_message({_, #message{to = To} = Stanza} = Acc) ->
   end,
   Acc.
 
-
 -spec(remove_user(User :: binary(), Server :: binary()) ->
-             {error, stanza_error()} |
-             {unregistered, [pushoff_registration()]}).
-
+  {error, stanza_error()} |{unregistered, [pushoff_registration()]}).
 remove_user(User, Server) ->
-    mod_pushoff_mnesia:unregister_client({User, Server}, '_').
-
+  % mod_pushoff_mnesia:unregister_client(User, Server).
+  ok.
 
 -spec adhoc_local_commands(Acc :: empty | adhoc_command(),
                            From :: jid(),
@@ -109,7 +141,6 @@ remove_user(User, Server) ->
                            Request :: adhoc_command()) ->
                                   adhoc_command() |
                                   {error, stanza_error()}.
-
 adhoc_local_commands(Acc, From, To, #adhoc_command{node = Command, action = execute, xdata = XData} = Req) ->
     Host = To#jid.lserver,
     Access = gen_mod:get_module_opt(Host, ?MODULE, access_backends),
@@ -121,7 +152,6 @@ adhoc_local_commands(Acc, From, To, #adhoc_command{node = Command, action = exec
     case Result of
         unknown -> Acc;
         {error, Error} -> {error, Error};
-
         {registered, ok} ->
             xmpp_util:make_adhoc_response(Req, #adhoc_command{status = completed});
 
@@ -151,11 +181,32 @@ adhoc_perform_action(<<"register-push-apns-h2">>, #jid{lserver = LServer} = From
                 [Base64Token] ->
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
-                        Token -> mod_pushoff_mnesia:register_client(From, {LServer, BackendRef}, Token)
+                        Token ->
+                          Key2 = {From#jid.luser, From#jid.lserver},
+                          mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
+adhoc_perform_action(<<"register-push-apns-h2-voip">>, #jid{lserver = LServer} = From, XData) ->
+  BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
+                 [Key] -> {mod_pushoff_apns_h2, Key};
+                 _ -> undefined
+               end,
+  case validate_backend_ref(LServer, BackendRef) of
+    {error, E} -> {error, E};
+    {ok, BackendRef} ->
+      case xmpp_util:get_xdata_values(<<"token">>, XData) of
+        [Base64Token] ->
+          case catch base64:decode(Base64Token) of
+            {'EXIT', _} -> {error, xmpp:err_bad_request()};
+            Token ->
+              Key2 = {{From#jid.luser, server = From#jid.server}, voip},
+              mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
+          end;
+        _ -> {error, xmpp:err_bad_request()}
+      end
+  end;
 adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, XData) ->
     BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
         [Key] -> {mod_pushoff_apns, Key};
@@ -168,11 +219,32 @@ adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, X
                 [Base64Token] ->
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
-                        Token -> mod_pushoff_mnesia:register_client(From, {LServer, BackendRef}, Token)
+                        Token ->
+                          Key2 = #jid{user = From#jid.user, server = From#jid.server},
+                          mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
+adhoc_perform_action(<<"register-push-apns-voip">>, #jid{lserver = LServer} = From, XData) ->
+  BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
+                 [Key] -> {mod_pushoff_apns, Key};
+                 _ -> mod_pushoff_apns
+               end,
+  case validate_backend_ref(LServer, BackendRef) of
+    {error, E} -> {error, E};
+    {ok, BackendRef} ->
+      case xmpp_util:get_xdata_values(<<"token">>, XData) of
+        [Base64Token] ->
+          case catch base64:decode(Base64Token) of
+            {'EXIT', _} -> {error, xmpp:err_bad_request()};
+            Token ->
+              Key2 = {From#jid.luser, From#jid.lserver, voip},
+              mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
+          end;
+        _ -> {error, xmpp:err_bad_request()}
+      end
+  end;
 adhoc_perform_action(<<"register-push-fcm">>, #jid{lserver = LServer} = From, XData) ->
     BackendRef = case xmpp_util:get_xdata_values(<<"backend_ref">>, XData) of
         [Key] -> {fcm, Key};
@@ -182,16 +254,19 @@ adhoc_perform_action(<<"register-push-fcm">>, #jid{lserver = LServer} = From, XD
         {error, E} -> {error, E};
         {ok, BackendRef} ->
             case xmpp_util:get_xdata_values(<<"token">>, XData) of
-                [AsciiToken] -> mod_pushoff_mnesia:register_client(From, {LServer, BackendRef}, AsciiToken);
+                [AsciiToken] ->
+                  Key2 = {From#jid.luser, From#jid.lserver},
+                  mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, AsciiToken);
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
 adhoc_perform_action(<<"unregister-push">>, From, _) ->
-    mod_pushoff_mnesia:unregister_client(From, undefined);
+  % mod_pushoff_mnesia:unregister_client(From#jid.luser, From#jid.lserver);
+  ok;
 adhoc_perform_action(<<"list-push-registrations">>, From, _) ->
-    mod_pushoff_mnesia:list_registrations(From);
+  mod_pushoff_mnesia:list_registrations_all({From#jid.luser, From#jid.lserver});
 adhoc_perform_action(_, _, _) ->
-    unknown.
+  unknown.
 
 %
 % ejabberd gen_mod callbacks and configuration
