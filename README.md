@@ -4,6 +4,7 @@ mod_pushoff sends empty push notifications for messages in ejabberd's offline qu
 
 Supported backends:
 - `mod_pushoff_apns_h2`: [Apple APNs over http/2](https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns)
+- `mod_pushoff_apns_h2_viop`: backends for APN VOIP notification [Apple APNs over http/2](https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns)
 - `mod_pushoff_fcm`: [Google Firebase Cloud Messaging HTTP Protocol](https://firebase.google.com/docs/cloud-messaging/http-server-ref)
 
 This module supports type of push notification in message (means extended type of message):
@@ -20,11 +21,13 @@ This module supports type of push notification in message (means extended type o
 * `<push type='hidden'/>` - text of PN: hidden message
 * `<push type='call'/>` - text of PN: call message
 * `<push type='none'/>` - don't send PN
+* `<push type='message'/>` - text of PN: text message
+* `<push type='body'/>` - text of PN: text message, including the body.
 
 ## Prerequisites
 
 * Erlang/OTP 19 or higher
-* ejabberd 20.07
+* ejabberd 20.12
 
 ## Installation
 
