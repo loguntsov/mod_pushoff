@@ -260,9 +260,9 @@ adhoc_perform_action(<<"register-push-fcm">>, #jid{lserver = LServer} = From, XD
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
-adhoc_perform_action(<<"unregister-push">>, From, _) ->
+%adhoc_perform_action(<<"unregister-push">>, From, _) ->
   % mod_pushoff_mnesia:unregister_client(From#jid.luser, From#jid.lserver);
-  ok;
+%  unknown;
 adhoc_perform_action(<<"list-push-registrations">>, From, _) ->
   mod_pushoff_mnesia:list_registrations_all({From#jid.luser, From#jid.lserver});
 adhoc_perform_action(_, _, _) ->
