@@ -201,7 +201,7 @@ adhoc_perform_action(<<"register-push-apns-h2-voip">>, #jid{lserver = LServer} =
           case catch base64:decode(Base64Token) of
             {'EXIT', _} -> {error, xmpp:err_bad_request()};
             Token ->
-              Key2 = {From#jid.luser, server = From#jid.server, voip},
+              Key2 = {From#jid.luser, From#jid.server, voip},
               mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
           end;
         _ -> {error, xmpp:err_bad_request()}
@@ -220,7 +220,7 @@ adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, X
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
                         Token ->
-                          Key2 = #jid{user = From#jid.user, server = From#jid.server},
+                          Key2 = {From#jid.user, From#jid.server},
                           mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
