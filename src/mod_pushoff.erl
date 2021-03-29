@@ -132,8 +132,7 @@ offline_message({_, #message{to = To} = Stanza} = Acc) ->
 -spec(remove_user(User :: binary(), Server :: binary()) ->
   {error, stanza_error()} |{unregistered, [pushoff_registration()]}).
 remove_user(User, Server) ->
-  % mod_pushoff_mnesia:unregister_client(User, Server).
-  ok.
+  mod_pushoff_mnesia:unregister_client(User, Server).
 
 -spec adhoc_local_commands(Acc :: empty | adhoc_command(),
                            From :: jid(),
@@ -260,9 +259,8 @@ adhoc_perform_action(<<"register-push-fcm">>, #jid{lserver = LServer} = From, XD
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
-%adhoc_perform_action(<<"unregister-push">>, From, _) ->
-  % mod_pushoff_mnesia:unregister_client(From#jid.luser, From#jid.lserver);
-%  unknown;
+adhoc_perform_action(<<"unregister-push">>, From, _) ->
+  mod_pushoff_mnesia:unregister_client(From#jid.luser, From#jid.lserver);
 adhoc_perform_action(<<"list-push-registrations">>, From, _) ->
   mod_pushoff_mnesia:list_registrations_all({From#jid.luser, From#jid.lserver});
 adhoc_perform_action(_, _, _) ->

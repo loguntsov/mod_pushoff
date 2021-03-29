@@ -67,12 +67,38 @@ register_client(Key, BackendId, Token) ->
             {error, stanza_error()} |
             {unregistered, [pushoff_registration()]}).
 unregister_client({Key, Timestamp}) ->
-  unregister_client(Key, Timestamp).
+  F = fun() ->
+    [
+      begin
+        ?DEBUG("+++++ deleting registration ~p", [Reg]),
+        mnesia:delete_object(Reg),
+        Reg
+      end || Reg <-
+      [
+        mnesia:select(pushoff_registration,
+          [{#pushoff_registration{key = Key,
+            timestamp = Timestamp,
+            _='_'},
+            [], ['$_']}])
+      ]
+    ]
+      end,
+  case mnesia:transaction(F) of
+    {aborted, Reason} ->
+      ?ERROR_MSG("unregister_client: ~p", [Reason]),
+      {error, xmpp:err_internal_server_error()};
+    {atomic, []} ->
+      {error, xmpp:err_item_not_found()};
+    {atomic, Result} ->
+      {unregistered, Result}
+  end.
 
--spec(unregister_client(key(), erlang:timestamp() | '_') ->
+-spec(unregister_client(User :: binary(), Server :: binary()) ->
              {error, stanza_error()} |
              {unregistered, [pushoff_registration()]}).
-unregister_client(Key, Timestamp) ->
+unregister_client(User, Server) ->
+  Key1 = {User, Server},
+  Key2 = {User, Server, voip},
   F = fun() ->
       [
         begin
@@ -82,8 +108,12 @@ unregister_client(Key, Timestamp) ->
         end || Reg <-
           [
             mnesia:select(pushoff_registration,
-              [{#pushoff_registration{key = Key,
-                timestamp = Timestamp,
+              [{#pushoff_registration{key = Key1,
+                _='_'},
+                [], ['$_']}])
+          ] ++ [
+            mnesia:select(pushoff_registration,
+              [{#pushoff_registration{key = Key2,
                 _='_'},
                 [], ['$_']}])
           ]
