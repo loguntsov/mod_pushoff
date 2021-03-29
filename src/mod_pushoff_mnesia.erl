@@ -106,17 +106,15 @@ unregister_client(User, Server) ->
            mnesia:delete_object(Reg),
            Reg
         end || Reg <-
-          [
-            mnesia:select(pushoff_registration,
-              [{#pushoff_registration{key = Key1,
-                _='_'},
-                [], ['$_']}])
+        lists:flatten(
+          [mnesia:select(pushoff_registration,
+              [{#pushoff_registration{key = Key1, _='_'}, [], ['$_']}])
           ] ++ [
             mnesia:select(pushoff_registration,
               [{#pushoff_registration{key = Key2,
                 _='_'},
                 [], ['$_']}])
-          ]
+          ])
       ]
   end,
   case mnesia:transaction(F) of
