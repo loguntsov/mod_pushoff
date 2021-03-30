@@ -168,8 +168,8 @@ response_status([{<<":status">>, Status}|_] = Headers, Data) ->
 post(Host, Path) ->
     [{<<":method">>,<<"POST">>}, {<<":scheme">>,<<"https">>}, {<<":authority">>,Host}, {<<":path">>,Path}].
 
-alert_headers(APNS, Topic, RawToken, ApnsPushType) ->
-    Token = to_hex(RawToken),
+alert_headers(APNS, Topic, Base64Token, ApnsPushType) ->
+    Token = to_hex(base64:decode(Base64Token)),
     ?DEBUG("Token:~p~n", [Token]),
     post(APNS, <<"/3/device/", Token/binary>>)
     ++ [{<<"apns-push-type">>, iolist_to_binary(ApnsPushType)}, {<<"apns-topic">>,Topic}, {<<"apns-priority">>,<<"10">>}].

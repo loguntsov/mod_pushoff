@@ -40,6 +40,9 @@
 -define(ALERT, "alert").
 -define(VOIP, "voip").
 
+-define(NORMAL_PUSH_TYPE, 0).
+-define(VOIP_PUSH_TYPE, 1).
+
 -type apns_config() :: #{backend_type := mod_pushoff_apns_h2, certfile := binary(), gateway := binary(), topic := binary()}.
 -type fcm_config() :: #{backend_type := mod_pushoff_fcm, gateway := binary(), api_key := binary()}.
 -type backend_config() :: #{ref := backend_ref(), config := apns_config() | fcm_config()}.
@@ -96,15 +99,16 @@ dispatch(#pushoff_registration{key = Key, token = Token, timestamp = Timestamp, 
 %
 
 -spec(offline_message({atom(), message()}) -> {atom(), message()}).
-offline_message({_, #message{to = To} = Stanza} = Acc) ->
+offline_message({_, #message{to = To#jid{lserver = LServer}} = Stanza} = Acc) ->
   ?DEBUG("Stanza:~p~n",[Stanza]),
   Payload = stanza_to_payload(Stanza),
   case proplists:get_value(push_type, Payload, none) of
     none ->
       ok;
     call ->
-      Key = {To#jid.luser, To#jid.lserver, voip},
-      case mod_pushoff_mnesia:list_registrations(Key) of
+      Key = {To#jid.luser, To#jid.lserver, ?VOIP_PUSH_TYPE},
+      Mod = gen_mod:db_mod(LServer, ?MODULE),
+      case Mod:list_registrations(Key) of
         {registrations, []} ->
           ?DEBUG("~p is not_subscribed", [To]),
           ok;
@@ -115,8 +119,9 @@ offline_message({_, #message{to = To} = Stanza} = Acc) ->
         {error, _} -> ok
       end;
     _ ->
-      Key = {To#jid.luser, To#jid.lserver},
-      case mod_pushoff_mnesia:list_registrations(Key) of
+      Key = {To#jid.luser, To#jid.lserver, ?NORMAL_PUSH_TYPE},
+      Mod = gen_mod:db_mod(LServer, ?MODULE),
+      case Mod:list_registrations(Key) of
         {registrations, []} ->
           ?DEBUG("~p is not_subscribed", [To]),
           ok;
@@ -132,7 +137,8 @@ offline_message({_, #message{to = To} = Stanza} = Acc) ->
 -spec(remove_user(User :: binary(), Server :: binary()) ->
   {error, stanza_error()} |{unregistered, [pushoff_registration()]}).
 remove_user(User, Server) ->
-  mod_pushoff_mnesia:unregister_client(User, Server).
+  Mod = gen_mod:db_mod(Server, ?MODULE),
+  Mod:unregister_client(User, Server).
 
 -spec adhoc_local_commands(Acc :: empty | adhoc_command(),
                            From :: jid(),
@@ -181,8 +187,9 @@ adhoc_perform_action(<<"register-push-apns-h2">>, #jid{lserver = LServer} = From
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
                         Token ->
-                          Key2 = {From#jid.luser, From#jid.lserver},
-                          mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
+                          Key2 = {From#jid.luser, From#jid.lserver, ?NORMAL_PUSH_TYPE},
+                          Mod = gen_mod:db_mod(LServer, ?MODULE),
+                          Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
@@ -200,8 +207,9 @@ adhoc_perform_action(<<"register-push-apns-h2-voip">>, #jid{lserver = LServer} =
           case catch base64:decode(Base64Token) of
             {'EXIT', _} -> {error, xmpp:err_bad_request()};
             Token ->
-              Key2 = {From#jid.luser, From#jid.server, voip},
-              mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
+              Key2 = {From#jid.luser, From#jid.server, ?VOIP_PUSH_TYPE},
+              Mod = gen_mod:db_mod(LServer, ?MODULE),
+              Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
           end;
         _ -> {error, xmpp:err_bad_request()}
       end
@@ -219,8 +227,9 @@ adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, X
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
                         Token ->
-                          Key2 = {From#jid.user, From#jid.server},
-                          mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
+                          Key2 = {From#jid.user, From#jid.server, ?NORMAL_PUSH_TYPE},
+                          Mod = gen_mod:db_mod(LServer, ?MODULE),
+                          Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
                     end;
                 _ -> {error, xmpp:err_bad_request()}
             end
@@ -238,8 +247,9 @@ adhoc_perform_action(<<"register-push-apns-voip">>, #jid{lserver = LServer} = Fr
           case catch base64:decode(Base64Token) of
             {'EXIT', _} -> {error, xmpp:err_bad_request()};
             Token ->
-              Key2 = {From#jid.luser, From#jid.lserver, voip},
-              mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, Token)
+              Key2 = {From#jid.luser, From#jid.lserver, ?VOIP_PUSH_TYPE},
+              Mod = gen_mod:db_mod(LServer, ?MODULE),
+              Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
           end;
         _ -> {error, xmpp:err_bad_request()}
       end
@@ -254,15 +264,18 @@ adhoc_perform_action(<<"register-push-fcm">>, #jid{lserver = LServer} = From, XD
         {ok, BackendRef} ->
             case xmpp_util:get_xdata_values(<<"token">>, XData) of
                 [AsciiToken] ->
-                  Key2 = {From#jid.luser, From#jid.lserver},
-                  mod_pushoff_mnesia:register_client(Key2, {LServer, BackendRef}, AsciiToken);
+                  Key2 = {From#jid.luser, From#jid.lserver, ?NORMAL_PUSH_TYPE},
+                  Mod = gen_mod:db_mod(LServer, ?MODULE),
+                  Mod:register_client(Key2, {LServer, BackendRef}, AsciiToken);
                 _ -> {error, xmpp:err_bad_request()}
             end
     end;
-adhoc_perform_action(<<"unregister-push">>, From, _) ->
-  mod_pushoff_mnesia:unregister_client(From#jid.luser, From#jid.lserver);
-adhoc_perform_action(<<"list-push-registrations">>, From, _) ->
-  mod_pushoff_mnesia:list_registrations_all({From#jid.luser, From#jid.lserver});
+adhoc_perform_action(<<"unregister-push">>, #jid{lserver = LServer} = From, _) ->
+  Mod = gen_mod:db_mod(LServer, ?MODULE),
+  Mod:unregister_client(From#jid.luser, From#jid.lserver);
+adhoc_perform_action(<<"list-push-registrations">>, #jid{lserver = LServer} = From, _) ->
+  Mod = gen_mod:db_mod(LServer, ?MODULE),
+  Mod:list_registrations_all({From#jid.luser, From#jid.lserver});
 adhoc_perform_action(_, _, _) ->
   unknown.
 
@@ -273,8 +286,6 @@ adhoc_perform_action(_, _, _) ->
 -spec(start(Host :: binary(), Opts :: [any()]) -> any()).
 
 start(Host, Opts) ->
-    mod_pushoff_mnesia:create(),
-
     ok = ejabberd_hooks:add(remove_user, Host, ?MODULE, remove_user, 50),
     ok = ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, offline_message, ?OFFLINE_HOOK_PRIO),
     ok = ejabberd_hooks:add(adhoc_local_commands, Host, ?MODULE, adhoc_local_commands, 75),
@@ -394,5 +405,4 @@ start_worker(Host, #{ref := Ref, config := Config}) ->
 health() ->
     Hosts = ejabberd_config:get_myhosts(),
     [{offline_message_hook, [ets:lookup(hooks, {offline_message_hook, H}) || H <- Hosts]},
-     {adhoc_local_commands, [ets:lookup(hooks, {adhoc_local_commands, H}) || H <- Hosts]},
-     {mnesia, mod_pushoff_mnesia:health()}].
+     {adhoc_local_commands, [ets:lookup(hooks, {adhoc_local_commands, H}) || H <- Hosts]}].

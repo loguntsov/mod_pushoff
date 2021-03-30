@@ -16,6 +16,8 @@
 
 -include("mod_pushoff.hrl").
 
+-define(NORMAL_PUSH_TYPE, 0).
+-define(VOIP_PUSH_TYPE, 1).
 -define(RECORD(X), {X, record_info(fields, X)}).
 
 create() ->
@@ -97,16 +99,15 @@ unregister_client({Key, Timestamp}) ->
              {error, stanza_error()} |
              {unregistered, [pushoff_registration()]}).
 unregister_client(User, Server) ->
-  Key1 = {User, Server},
-  Key2 = {User, Server, voip},
+  Key1 = {User, Server, ?NORMAL_PUSH_TYPE},
+  Key2 = {User, Server, ?VOIP_PUSH_TYPE},
   F = fun() ->
-      [
+    [
         begin
            ?DEBUG("+++++ deleting registration ~p", [Reg]),
            mnesia:delete_object(Reg),
            Reg
-        end || Reg <-
-        lists:flatten(
+        end || Reg <- lists:flatten(
           [mnesia:select(pushoff_registration,
               [{#pushoff_registration{key = Key1, _='_'}, [], ['$_']}])
           ] ++ [
