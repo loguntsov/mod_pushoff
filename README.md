@@ -3,6 +3,7 @@
 mod_pushoff sends empty push notifications for messages in ejabberd's offline queue.
 
 Supported backends:
+- `mod_pushoff_apns`: Apple APNs - deprecated.
 - `mod_pushoff_apns_h2`: [Apple APNs over http/2](https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns)
 - `mod_pushoff_apns_h2_viop`: backends for APN VOIP notification [Apple APNs over http/2](https://developer.apple.com/documentation/usernotifications/setting_up_a_remote_notification_server/sending_notification_requests_to_apns)
 - `mod_pushoff_fcm`: [Google Firebase Cloud Messaging HTTP Protocol](https://firebase.google.com/docs/cloud-messaging/http-server-ref)
@@ -80,6 +81,7 @@ modules:
   # mod_offline is a hard dependency
   mod_offline: {}
   mod_pushoff:
+    db_type: mysql | mnesia
     backends:
       -
         type: mod_pushoff_apns # deprecated
