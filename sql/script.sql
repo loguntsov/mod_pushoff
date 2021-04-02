@@ -11,14 +11,3 @@ CREATE TABLE IF NOT EXISTS `pushoff_tbl`(
 
 CREATE INDEX pushoff_tbl_index1 ON `pushoff_tbl`(`timestamp`);
 CREATE INDEX pushoff_tbl_index2 ON `pushoff_tbl`(`bare_jid`);
-
-CREATE OR REPLACE VIEW `pushoff_tbl_view` AS
-SELECT
-    `bare_jid`,
-    `push_type`,
-    `token`,
-    `backend_server`,
-    `backend_id`,
-    `backend_ref`,
-    FROM_UNIXTIME(`timestamp`) as "timestamp"
-FROM `pushoff_tbl`;
