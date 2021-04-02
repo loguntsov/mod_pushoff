@@ -111,7 +111,7 @@ do_handle_response(#{sending := #{message := M, stream_id := _StreamId, headers 
     case response_status(Headers, Data) of
         unregistered ->
             {dispatch, _UserBare, _Payload, _Token, DisableArgs} = M,
-            mod_pushoff_mnesia:unregister_client(DisableArgs), % TODO: maybe sweep the queue for similar messages?
+            mod_pushoff:unregister_client(DisableArgs), % TODO: maybe sweep the queue for similar messages?
             self() ! dequeue,
             {noreply, State#{sending => undefined}};
         transient ->

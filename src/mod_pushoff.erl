@@ -27,7 +27,7 @@
 
 -compile(export_all).
 -export([start/2, stop/1, reload/3, depends/2, mod_options/1, mod_opt_type/1, parse_backends/1,
-         offline_message/1, adhoc_local_commands/4, remove_user/2,
+         offline_message/1, adhoc_local_commands/4, remove_user/2, unregister_client/1,
          health/0]).
 
 -include("logger.hrl").
@@ -99,7 +99,7 @@ dispatch(#pushoff_registration{key = Key, token = Token, timestamp = Timestamp, 
 %
 
 -spec(offline_message({atom(), message()}) -> {atom(), message()}).
-offline_message({_, #message{to = To#jid{lserver = LServer}} = Stanza} = Acc) ->
+offline_message({_, #message{to = #jid{lserver = LServer} = To} = Stanza} = Acc) ->
   ?DEBUG("Stanza:~p~n",[Stanza]),
   Payload = stanza_to_payload(Stanza),
   case proplists:get_value(push_type, Payload, none) of
@@ -133,6 +133,14 @@ offline_message({_, #message{to = To#jid{lserver = LServer}} = Stanza} = Acc) ->
       end
   end,
   Acc.
+
+-spec(unregister_client({key(), erlang:timestamp()}) ->
+  {error, stanza_error()} |
+  {unregistered, [pushoff_registration()]}).
+unregister_client({Key, _Timestamp}) ->
+  {User, Server, _PushType} = Key,
+  Mod = gen_mod:db_mod(Server, ?MODULE),
+  Mod:unregister_client(User, Server).
 
 -spec(remove_user(User :: binary(), Server :: binary()) ->
   {error, stanza_error()} |{unregistered, [pushoff_registration()]}).
@@ -186,7 +194,7 @@ adhoc_perform_action(<<"register-push-apns-h2">>, #jid{lserver = LServer} = From
                 [Base64Token] ->
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
-                        Token ->
+                        _Token ->
                           Key2 = {From#jid.luser, From#jid.lserver, ?NORMAL_PUSH_TYPE},
                           Mod = gen_mod:db_mod(LServer, ?MODULE),
                           Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
@@ -206,7 +214,7 @@ adhoc_perform_action(<<"register-push-apns-h2-voip">>, #jid{lserver = LServer} =
         [Base64Token] ->
           case catch base64:decode(Base64Token) of
             {'EXIT', _} -> {error, xmpp:err_bad_request()};
-            Token ->
+            _Token ->
               Key2 = {From#jid.luser, From#jid.server, ?VOIP_PUSH_TYPE},
               Mod = gen_mod:db_mod(LServer, ?MODULE),
               Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
@@ -226,7 +234,7 @@ adhoc_perform_action(<<"register-push-apns">>, #jid{lserver = LServer} = From, X
                 [Base64Token] ->
                     case catch base64:decode(Base64Token) of
                         {'EXIT', _} -> {error, xmpp:err_bad_request()};
-                        Token ->
+                        _Token ->
                           Key2 = {From#jid.user, From#jid.server, ?NORMAL_PUSH_TYPE},
                           Mod = gen_mod:db_mod(LServer, ?MODULE),
                           Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
@@ -246,7 +254,7 @@ adhoc_perform_action(<<"register-push-apns-voip">>, #jid{lserver = LServer} = Fr
         [Base64Token] ->
           case catch base64:decode(Base64Token) of
             {'EXIT', _} -> {error, xmpp:err_bad_request()};
-            Token ->
+            _Token ->
               Key2 = {From#jid.luser, From#jid.lserver, ?VOIP_PUSH_TYPE},
               Mod = gen_mod:db_mod(LServer, ?MODULE),
               Mod:register_client(Key2, {LServer, BackendRef}, Base64Token)
@@ -318,6 +326,8 @@ depends(_, _) ->
     [{mod_offline, hard}, {mod_adhoc, hard}].
 
 % mod_opt_type(backends) -> fun ?MODULE:parse_backends/1;
+mod_opt_type(db_type) ->
+  econf:db_type(?MODULE);
 mod_opt_type(backends) ->
     econf:list(
         backend()
@@ -326,9 +336,12 @@ mod_opt_type(access_backends) ->
     econf:acl();
 mod_opt_type(_) -> [backends, access_backends].
 
-mod_options(_Host) ->
-    [{backends, []},
-     {access_backends, all}].
+mod_options(Host) ->
+    [
+      {db_type, ejabberd_config:default_db(Host, ?MODULE)},
+      {backends, []},
+      {access_backends, all}
+    ].
 
 validate_backend_ref(Host, Ref) ->
     case [R || #{ref := R} <- backend_configs(Host), R == Ref] of
@@ -398,6 +411,8 @@ start_worker(Host, #{ref := Ref, config := Config}) ->
                    permanent, 1000, worker, [?MODULE]},
     supervisor:start_child(ejabberd_gen_mod_sup, BackendSpec).
 
+mod_doc() ->
+  #{}.
 %
 % operations
 %

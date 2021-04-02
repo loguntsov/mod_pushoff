@@ -107,7 +107,7 @@ handle_info(send, #state{send_queue = SendQ,
                           ok -> ok;
                           E ->
                               ?ERROR_MSG("error: ~p, deleting registration", [E]),
-                              mod_pushoff_mnesia:unregister_client(DisableArgs)
+                            mod_pushoff:unregister_client(DisableArgs)
                       end,
                       Timestamp = erlang:timestamp(),
                       State#state{send_queue = NewSendQ,
@@ -115,7 +115,7 @@ handle_info(send, #state{send_queue = SendQ,
 
                 {ok, {{_, _, _}, _, ResponseBody}} ->
                       ?ERROR_MSG("error: ~p, deleting registration", [ResponseBody]),
-                      mod_pushoff_mnesia:unregister_client(DisableArgs),
+                      mod_pushoff:unregister_client(DisableArgs),
                       Timestamp = erlang:timestamp(),
                       State#state{send_queue = NewSendQ,
                                   pending_timestamp = Timestamp};

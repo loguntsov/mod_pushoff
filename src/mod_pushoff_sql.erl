@@ -14,51 +14,67 @@
 -include("mod_pushoff.hrl").
 -include("ejabberd_sql_pt.hrl").
 
--spec(register_client(jid(), backend_id(), binary()) ->
+-include("xmpp_codec.hrl").
+
+-compile(export_all).
+
+-spec(register_client(key(), backend_id(), binary()) ->
              {error, stanza_error()} |
              {registered, ok}).
-register_client(Key, BackendId, Token) ->
+register_client(Key, Backend, Token) ->
   ?DEBUG("register_client#start", []),
-  ?DEBUG("key:~p, BackendId:~p, Token:~p~n", [Key, BackendId, Token]),
+  ?DEBUG("key:~p, Backend:~p, Token:~p~n", [Key, Backend, Token]),
 
+  {BackendServer, {BackendId, BackendRef}} = Backend,
+  BackendIdBin = atom_to_binary(BackendId, utf8),
   {User, Server, PushType} = Key,
-  {BackendServer, {BackendType, BackendRef}} = BackendId,
-  BareJid = <<User/binary, <<"@">>, Server/binary>>,
+  BareJid = <<User/binary, "@", Server/binary>>,
   case ejabberd_sql:sql_query(Server,
-    ?SQL("select @(bare_jid)s,@(push_type)d
-          from pushoff_tbl
-          where bare_jid=%(BareJid)s and push_type=%(PushType)d"))
+    ?SQL("select @(bare_jid)s,"
+            "@(push_type)d "
+            "from pushoff_tbl "
+            "where bare_jid=%(BareJid)s and push_type=%(PushType)d"))
   of
-    {selected, _ , []} ->
+    {selected, []} ->
       Now = erlang:system_time(millisecond),
-      ejabberd_sql:sql_query(Server, ?SQL_INSERT(
+      case ejabberd_sql:sql_query(Server, ?SQL_INSERT(
         "pushoff_tbl",
-        ["bare_jid=%(User)s",
+        ["bare_jid=%(BareJid)s",
           "push_type=%(PushType)d",
           "token=%(Token)s",
           "backend_server=%(BackendServer)s",
-          "backend_id=%(BackendType)s",
+          "backend_id=%(BackendIdBin)s",
           "backend_ref=%(BackendRef)s",
-          "timestamp=%(Now)d"
+          "`timestamp`=%(Now)d"
         ])
-      ),
-      {registered, ok};
-    {selected, _ , Result} ->
+      ) of
+        {updated, _} ->
+          {registered, ok};
+        Err ->
+          ?ERROR_MSG("register_client error:~p~n", [Err]),
+          {error, xmpp:err_internal_server_error()}
+      end;
+    {selected, _Result} ->
       Now = erlang:system_time(millisecond),
-      ejabberd_sql:sql_query(Server, ?SQL_UPSERT_T(
+      case ejabberd_sql:sql_query(Server, ?SQL_UPSERT_T(
         "pushoff_tbl",
-        ["!bare_jid=%(User)s",
+        ["!bare_jid=%(BareJid)s",
           "!push_type=%(PushType)d",
           "token=%(Token)s",
           "backend_server=%(BackendServer)s",
-          "backend_id=%(BackendType)s",
+          "backend_id=%(BackendIdBin)s",
           "backend_ref=%(BackendRef)s",
-          "timestamp=%(Now)d"
+          "`timestamp`=%(Now)d"
         ])
-      ),
-      {registered, ok};
-    _ ->
-      ?ERROR_MSG("Database error occurs.", []),
+      ) of
+        {updated, _} ->
+          {registered, ok};
+        Err ->
+          ?ERROR_MSG("register_client error:~p~n", [Err]),
+          {error, xmpp:err_internal_server_error()}
+      end;
+    Error ->
+      ?ERROR_MSG("register_client error:~p~n", [Error]),
       {error, xmpp:err_internal_server_error()}
   end.
 
@@ -67,41 +83,38 @@ register_client(Key, BackendId, Token) ->
             {unregistered, [pushoff_registration()]}).
 unregister_client({Key, Timestamp}) ->
   {User, Server, PushType} = Key,
-  BareJid = <<User/binary, <<"@">>, Server/binary>>,
+  BareJid = <<User/binary, "@", Server/binary>>,
   case ejabberd_sql:sql_query(Server,
-    ?SQL("select @(bare_jid)s,
-            @(push_type)d
-            @(token)s,
-            @(backend_server)s,
-            @(backend_id)s,
-            @(backend_ref)s,
-            @(timestamp)d
-          from pushoff_tbl
-          where bare_jid=%(BareJid)s and push_type=%(PushType)d"))
+    ?SQL("select @(bare_jid)s,"
+          "@(push_type)d,"
+          "@(token)s,"
+          "@(backend_server)s,"
+          "@(backend_id)s,"
+          "@(backend_ref)s,"
+          "@(`timestamp`)d "
+          "from pushoff_tbl "
+          "where bare_jid=%(BareJid)s and push_type=%(PushType)d"))
   of
-    {selected, _ , []} ->
+    {selected, []} ->
       {unregistered, []};
-    {select, _, Result} ->
-
+    {select, Result} ->
       case ejabberd_sql:sql_query(Server,
-        ?SQL("delete from pushoff_tbl
-          where bare_jid=%(BareJid)s and timestamp=%(Timestamp)d"))
+        ?SQL("delete from pushoff_tbl where bare_jid=%(BareJid)s and timestamp=%(Timestamp)d"))
       of
         {updated, _Num} ->
-          RetList = lists:foreach(fun(Record) ->
-            [_Barejid, _PushType, Token, Server, BackendId, BackendRef, Time] = Record,
-            #pushoff_registration{key = Key,
-              token = Token,
-              backend_id = {Server, {binary_to_atom(BackendId), BackendRef}},
-              timestamp = binary_to_integer(Time)
-            } end, Result),
+          RetList = [#pushoff_registration{
+            key = Key,
+            token = Token,
+            backend_id = {BackendServer, {binary_to_atom(BackendId, utf8), BackendRef}},
+            timestamp = Time}
+            || {_Barejid, _PushType, Token, BackendServer, BackendId, BackendRef, Time} <- Result],
           {unregistered, RetList};
-        _ ->
-          ?ERROR_MSG("unregister_client: databaser error", []),
+        Error2 ->
+          ?ERROR_MSG("unregister_client error:~p~n", [Error2]),
           {error, xmpp:err_internal_server_error()}
       end;
-    _ ->
-      ?ERROR_MSG("unregister_client: databaser error", []),
+    Error ->
+      ?ERROR_MSG("unregister_client error:~p~n", [Error]),
       {error, xmpp:err_internal_server_error()}
   end.
 
@@ -109,103 +122,93 @@ unregister_client({Key, Timestamp}) ->
              {error, stanza_error()} |
              {unregistered, [pushoff_registration()]}).
 unregister_client(User, Server) ->
-  BareJid = <<User/binary, <<"@">>, Server/binary>>,
+  BareJid = <<User/binary, "@", Server/binary>>,
   case ejabberd_sql:sql_query(Server,
-    ?SQL("select @(bare_jid)s,
-            @(push_type)d
-            @(token)s,
-            @(backend_server)s,
-            @(backend_id)s,
-            @(backend_ref)s,
-            @(timestamp)d
-          from pushoff_tbl
-          where bare_jid=%(BareJid)s"))
+    ?SQL("select @(bare_jid)s,"
+          "@(push_type)d,"
+          "@(token)s,"
+          "@(backend_server)s,"
+          "@(backend_id)s,"
+          "@(backend_ref)s,"
+          "@(`timestamp`)d "
+          "from pushoff_tbl "
+          "where bare_jid=%(BareJid)s"))
   of
-    {selected, _ , []} ->
+    {selected, []} ->
       {unregistered, []};
-    {select, _, Result} ->
-
+    {selected, Result} ->
       case ejabberd_sql:sql_query(Server,
-        ?SQL("delete from pushoff_tbl
-          where bare_jid=%(BareJid)s"))
+        ?SQL("delete from pushoff_tbl where bare_jid=%(BareJid)s"))
       of
         {updated, _Num} ->
-          RetList = lists:foreach(fun(Record) ->
-            [BareJid, PushType, Token, Server, BackendId, BackendRef, Time] = Record,
-            #pushoff_registration{key = {User, Server, binary_to_integer(PushType)},
-              token = Token,
-              backend_id = {Server, {binary_to_atom(BackendId), BackendRef}},
-              timestamp = binary_to_integer(Time)
-            } end, Result),
+          RetList = [#pushoff_registration{
+            key = {User, Server, PushType},
+            token = Token,
+            backend_id = {BackendServer, {binary_to_atom(BackendId, utf8), BackendRef}},
+            timestamp = Time}
+            || {_Barejid, PushType, Token, BackendServer, BackendId, BackendRef, Time} <- Result],
           {unregistered, RetList};
-        _ ->
-          ?ERROR_MSG("unregister_client: databaser error", []),
+        Error2 ->
+          ?ERROR_MSG("unregister_client error:~p~n", [Error2]),
           {error, xmpp:err_internal_server_error()}
       end;
-    _ ->
-      ?ERROR_MSG("unregister_client: databaser error", []),
+    Error ->
+      ?ERROR_MSG("unregister_client error:~p~n", [Error]),
       {error, xmpp:err_internal_server_error()}
   end.
 
--spec(list_registrations(jid()) -> {error, stanza_error()} |
+-spec(list_registrations(key()) -> {error, stanza_error()} |
                                    {registrations, [pushoff_registration()]}).
 
 list_registrations(Key) ->
   {User, Server, PushType} = Key,
-  BareJid = <<User/binary, <<"@">>, Server/binary>>,
+  BareJid = <<User/binary, "@", Server/binary>>,
   case ejabberd_sql:sql_query(Server,
-    ?SQL("select @(bare_jid)s,
-            @(push_type)d
-            @(token)s,
-            @(backend_server)s,
-            @(backend_id)s,
-            @(backend_ref)s,
-            @(timestamp)d
-          from pushoff_tbl
-          where bare_jid=%(BareJid)s and push_type=%(PushType)d"))
+    ?SQL("select @(bare_jid)s,"
+          "@(push_type)d,"
+          "@(token)s,"
+          "@(backend_server)s,"
+          "@(backend_id)s,"
+          "@(backend_ref)s,"
+          "@(`timestamp`)d "
+          "from pushoff_tbl "
+          "where bare_jid=%(BareJid)s and push_type=%(PushType)d"))
   of
-    {selected, _ , []} ->
-      {registrations, []};
-    {select, _, Result} ->
-      RegList = lists:foreach(fun(Record) ->
-        [_Barejid, _PushType, Token, Server, BackendId, BackendRef, Time] = Record,
-        #pushoff_registration{key = Key,
-          token = Token,
-          backend_id = {Server, {binary_to_atom(BackendId), BackendRef}},
-          timestamp = binary_to_integer(Time)
-        }
-        end, Result),
+    {selected, Result} ->
+      RegList = [#pushoff_registration{
+        key = Key,
+        token = Token,
+        backend_id = {BackendServer, {binary_to_atom(BackendId, utf8), BackendRef}},
+        timestamp = Time}
+        || {_Barejid, _PushType, Token, BackendServer, BackendId, BackendRef, Time} <- Result],
       {registrations, RegList};
-    _ ->
-      ?ERROR_MSG("list_registrations: databaser error", []),
+    Error ->
+      ?ERROR_MSG("list_registrations error:~p~n", [Error]),
       {error, xmpp:err_internal_server_error()}
   end.
 
 list_registrations_all({User, Server}) ->
-  BareJid = <<User/binary, <<"@">>, Server/binary>>,
+  BareJid = <<User/binary, "@", Server/binary>>,
   case ejabberd_sql:sql_query(Server,
-    ?SQL("select @(bare_jid)s,
-            @(push_type)d
-            @(token)s,
-            @(backend_server)s,
-            @(backend_id)s,
-            @(backend_ref)s,
-            @(timestamp)d
-          from pushoff_tbl
-          where bare_jid=%(BareJid)s"))
+    ?SQL("select @(bare_jid)s,"
+            "@(push_type)d,"
+            "@(token)s,"
+            "@(backend_server)s,"
+            "@(backend_id)s,"
+            "@(backend_ref)s,"
+            "@(`timestamp`)d "
+            "from pushoff_tbl "
+            "where bare_jid=%(BareJid)s"))
   of
-    {selected, _ , []} ->
-      {registrations, []};
-    {select, _, Result} ->
-      RegList = lists:foreach(fun(Record) ->
-        [_Barejid, PushType, Token, Server, BackendId, BackendRef, Time] = Record,
-        #pushoff_registration{key = {User, Server, binary_to_integer(PushType)},
-          token = Token,
-          backend_id = {Server, {binary_to_atom(BackendId), BackendRef}},
-          timestamp = binary_to_integer(Time)
-        } end, Result),
+    {selected, Result} ->
+      RegList = [#pushoff_registration{
+        key = {User, Server, PushType},
+        token = Token,
+        backend_id = {BackendServer, {binary_to_atom(BackendId, utf8), BackendRef}},
+        timestamp = Time}
+        || {_Barejid, PushType, Token, BackendServer, BackendId, BackendRef, Time} <- Result],
       {registrations, RegList};
-    _ ->
-      ?ERROR_MSG("list_registrations: databaser error", []),
+    Error ->
+      ?ERROR_MSG("list_registrations_all error:~p~n", [Error]),
       {error, xmpp:err_internal_server_error()}
   end.
