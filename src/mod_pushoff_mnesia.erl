@@ -20,6 +20,8 @@
 -define(VOIP_PUSH_TYPE, 1).
 -define(RECORD(X), {X, record_info(fields, X)}).
 
+-compile(export_all).
+
 create() ->
     mnesia_set_from_record(?RECORD(pushoff_registration)).
 
