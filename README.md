@@ -81,7 +81,7 @@ modules:
   # mod_offline is a hard dependency
   mod_offline: {}
   mod_pushoff:
-    db_type: mysql | mnesia
+    db_type: sql
     backends:
       -
         type: mod_pushoff_apns # deprecated
