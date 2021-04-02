@@ -146,8 +146,8 @@ list_registrations(Key) ->
 
 list_registrations_all({LUser, LServer}) ->
   F = fun() ->
-    MatchHead1 = #pushoff_registration{key = {LUser, LServer}, _='_'},
-    MatchHead2 = #pushoff_registration{key = {LUser, LServer, voip}, _='_'},
+    MatchHead1 = #pushoff_registration{key = {LUser, LServer, ?NORMAL_PUSH_TYPE}, _='_'},
+    MatchHead2 = #pushoff_registration{key = {LUser, LServer, ?VOIP_PUSH_TYPE}, _='_'},
     List1 = mnesia:select(pushoff_registration, [{MatchHead1, [], ['$_']}]),
     List2 = mnesia:select(pushoff_registration, [{MatchHead2, [], ['$_']}]),
     lists:merge(List1, List2)
