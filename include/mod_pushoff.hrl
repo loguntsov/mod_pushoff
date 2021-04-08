@@ -1,4 +1,4 @@
--type key() :: {binary(), binary(), normal | voip}.
+-type key() :: {binary(), binary(), integer()}.
 -type backend_ref() :: {atom(), binary()}.
 -type backend_id() :: {binary(), backend_ref()}.
 

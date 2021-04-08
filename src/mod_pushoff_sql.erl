@@ -56,18 +56,20 @@ register_client(Key, Backend, Token) ->
       end;
     {selected, _Result} ->
       Now = erlang:system_time(millisecond),
-      case ejabberd_sql:sql_query(Server, ?SQL_UPSERT_T(
-        "pushoff_tbl",
-        ["!bare_jid=%(BareJid)s",
-          "!push_type=%(PushType)d",
-          "token=%(Token)s",
-          "backend_server=%(BackendServer)s",
-          "backend_id=%(BackendIdBin)s",
-          "backend_ref=%(BackendRef)s",
-          "`timestamp`=%(Now)d"
-        ])
-      ) of
-        {updated, _} ->
+      F = fun() ->
+            ?SQL_UPSERT_T(
+              "pushoff_tbl",
+              ["!bare_jid=%(BareJid)s",
+                "!push_type=%(PushType)d",
+                "token=%(Token)s",
+                "backend_server=%(BackendServer)s",
+                "backend_id=%(BackendIdBin)s",
+                "backend_ref=%(BackendRef)s",
+                "timestamp=%(Now)d"
+              ])
+          end,
+      case ejabberd_sql:sql_transaction(Server, F) of
+        {atomic, _} ->
           {registered, ok};
         Err ->
           ?ERROR_MSG("register_client error:~p~n", [Err]),
