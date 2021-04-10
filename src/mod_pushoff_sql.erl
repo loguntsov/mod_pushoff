@@ -56,18 +56,7 @@ register_client(Key, Backend, Token) ->
       end;
     {selected, _Result} ->
       Now = erlang:system_time(millisecond),
-      F = fun() ->
-            ?SQL_UPSERT_T(
-              "pushoff_tbl",
-              ["!bare_jid=%(BareJid)s",
-                "!push_type=%(PushType)d",
-                "token=%(Token)s",
-                "backend_server=%(BackendServer)s",
-                "backend_id=%(BackendIdBin)s",
-                "backend_ref=%(BackendRef)s",
-                "timestamp=%(Now)d"
-              ])
-          end,
+      F = fun() -> update_token(BareJid, PushType, Token, BackendServer, BackendIdBin, BackendRef, Now) end,
       case ejabberd_sql:sql_transaction(Server, F) of
         {atomic, _} ->
           {registered, ok};
@@ -79,6 +68,19 @@ register_client(Key, Backend, Token) ->
       ?ERROR_MSG("register_client error:~p~n", [Error]),
       {error, xmpp:err_internal_server_error()}
   end.
+
+% Update pushoff_tbl, especially the token.
+update_token(BareJid, PushType, Token, BackendServer, BackendIdBin, BackendRef, Now) ->
+  ?SQL_UPSERT_T(
+    "pushoff_tbl",
+    ["!bare_jid=%(BareJid)s",
+      "!push_type=%(PushType)d",
+      "token=%(Token)s",
+      "backend_server=%(BackendServer)s",
+      "backend_id=%(BackendIdBin)s",
+      "backend_ref=%(BackendRef)s",
+      "timestamp=%(Now)d"
+    ]).
 
 -spec(unregister_client({key(), erlang:timestamp()}) ->
             {error, stanza_error()} |
